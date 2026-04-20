@@ -30,7 +30,7 @@ export default function DecompositionPage() {
     const [error, setError] = useState('');
 
     useEffect(() => {
-        api.getStocks().then(setStocks).catch(() => {}).finally(() => setLoading(false));
+        api.getStocks(1, 100).then((res) => setStocks(res.items)).catch(() => {}).finally(() => setLoading(false));
     }, []);
 
     const runDecomposition = async () => {

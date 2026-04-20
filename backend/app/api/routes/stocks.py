@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from typing import Optional
 import numpy as np
 from supertokens_python.recipe.session import SessionContainer
 from supertokens_python.recipe.session.framework.fastapi import verify_session
@@ -12,9 +13,31 @@ router = APIRouter()
 from app.services.ticker_service import get_sp500_tickers
 
 @router.get("")
-def list_stocks():
-    """List available stock symbols with metadata."""
+def list_stocks(
+    page: int = Query(1, ge=1, description="Page number"),
+    per_page: int = Query(20, ge=1, le=100, description="Items per page"),
+    search: Optional[str] = Query(None, description="Search by symbol or name"),
+    featured: bool = Query(False, description="Return only featured/base indices"),
+):
+    """List available stock symbols with metadata (paginated)."""
     from app.core.config import MODELS_DIR
+    
+    # If featured=true, only return the base indices
+    if featured:
+        result = []
+        for sym, meta in SYMBOLS.items():
+            models_available = []
+            for model_type in ["cnn_lstm", "lstm", "random_forest", "svr", "cnn_lstm_emd", "lstm_emd", "cnn_lstm_ceemd", "lstm_ceemd"]:
+                model_path = symbol_model_path(MODELS_DIR, model_type, sym)
+                if model_path.exists():
+                    models_available.append(model_type)
+            result.append({
+                "symbol": sym,
+                "name": meta.get("name", sym.upper()),
+                "color": meta.get("color", "#3b82f6"),
+                "models_available": models_available,
+            })
+        return {"items": sorted(result, key=lambda x: x["symbol"]), "total": len(result), "page": 1, "per_page": len(result), "pages": 1}
     
     # Base symbols
     combined_symbols = {sym: meta for sym, meta in SYMBOLS.items()}
@@ -31,6 +54,12 @@ def list_stocks():
 
     result = []
     for sym, meta in combined_symbols.items():
+        # Apply search filter
+        if search:
+            q = search.lower()
+            if q not in sym.lower() and q not in meta.get("name", "").lower():
+                continue
+        
         models_available = []
         for model_type in ["cnn_lstm", "lstm", "random_forest", "svr", "cnn_lstm_emd", "lstm_emd", "cnn_lstm_ceemd", "lstm_ceemd"]:
             model_path = symbol_model_path(MODELS_DIR, model_type, sym)
@@ -45,7 +74,60 @@ def list_stocks():
         })
         
     # Sort alphabetically by symbol
-    return sorted(result, key=lambda x: x["symbol"])
+    result = sorted(result, key=lambda x: x["symbol"])
+    
+    # Paginate
+    total = len(result)
+    pages = max(1, (total + per_page - 1) // per_page)
+    start = (page - 1) * per_page
+    end = start + per_page
+    
+    return {"items": result[start:end], "total": total, "page": page, "per_page": per_page, "pages": pages}
+
+@router.get("/{symbol}/summary")
+def get_stock_summary(symbol: str):
+    """Quick price summary for a symbol (no auth required)."""
+    meta = SYMBOLS.get(symbol, {})
+    meta_name = meta.get("name", symbol.upper())
+    meta_color = meta.get("color", "#3b82f6")
+
+    try:
+        df = fetch_stock_data(symbol, "5d")
+        if df.empty:
+            return {
+                "symbol": symbol,
+                "name": meta_name,
+                "color": meta_color,
+                "current_price": 0,
+                "change": 0,
+                "change_pct": 0,
+                "error": "No data available",
+            }
+
+        closes = df["Close"].dropna().tolist()
+        current = round(float(closes[-1]), 2) if closes else 0
+        prev = round(float(closes[-2]), 2) if len(closes) > 1 else current
+        change = round(current - prev, 2)
+        change_pct = round((change / prev * 100), 2) if prev != 0 else 0
+
+        return {
+            "symbol": symbol,
+            "name": meta_name,
+            "color": meta_color,
+            "current_price": current,
+            "change": change,
+            "change_pct": change_pct,
+        }
+    except Exception as e:
+        return {
+            "symbol": symbol,
+            "name": meta_name,
+            "color": meta_color,
+            "current_price": 0,
+            "change": 0,
+            "change_pct": 0,
+            "error": str(e),
+        }
 
 @router.get("/{symbol}/data")
 def get_stock_data(

@@ -29,7 +29,7 @@ export default function DataExplorerPage() {
     const PAGE_SIZE = 25;
 
     useEffect(() => {
-        api.getStocks().then(setStocks).catch(() => {}).finally(() => setLoading(false));
+        api.getStocks(1, 100).then((res) => setStocks(res.items)).catch(() => {}).finally(() => setLoading(false));
     }, []);
 
     const loadData = async () => {

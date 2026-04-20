@@ -43,8 +43,9 @@ export default function PredictionsPage() {
     const [trainingJob, setTrainingJob] = useState<TrainingJob | null>(null);
 
     useEffect(() => {
-        api.getStocks()
-            .then((items) => {
+        api.getStocks(1, 100)
+            .then((res) => {
+                const items = res.items;
                 setStocks(items);
                 const initial = items.find((item) => item.symbol === '^GSPC')?.symbol || items[0]?.symbol || '^GSPC';
                 setSelectedSymbol(initial);

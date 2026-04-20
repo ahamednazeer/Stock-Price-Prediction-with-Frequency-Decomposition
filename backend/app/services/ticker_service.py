@@ -1,5 +1,6 @@
 import pandas as pd
 import datetime
+import urllib.request
 
 _SP500_CACHE = None
 _LAST_FETCH = None
@@ -15,7 +16,16 @@ def get_sp500_tickers():
 
     try:
         url = 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
-        tables = pd.read_html(url)
+        # Wikipedia blocks default urllib User-Agent; use a browser-like header
+        req = urllib.request.Request(url, headers={
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) '
+                          'AppleWebKit/537.36 (KHTML, like Gecko) '
+                          'Chrome/120.0.0.0 Safari/537.36'
+        })
+        with urllib.request.urlopen(req) as resp:
+            html = resp.read().decode('utf-8')
+        
+        tables = pd.read_html(html)
         df = tables[0]
         
         tickers = []

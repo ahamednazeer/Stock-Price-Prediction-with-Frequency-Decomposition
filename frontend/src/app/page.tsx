@@ -19,9 +19,10 @@ export default function LandingPage() {
             try {
                 await api.health();
                 setApiOnline(true);
-                const stocks = await api.getStocks();
+                // Only fetch the 4 featured base indices for the ticker bar
+                const featured = await api.getFeaturedStocks();
                 const sums = await Promise.all(
-                    stocks.map((s) => api.getStockSummary(s.symbol).catch(() => ({
+                    featured.items.map((s) => api.getStockSummary(s.symbol).catch(() => ({
                         symbol: s.symbol,
                         name: s.name,
                         color: s.color,

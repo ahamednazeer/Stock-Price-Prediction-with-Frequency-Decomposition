@@ -7,6 +7,14 @@ export interface StockInfo {
     models_available: string[];
 }
 
+export interface StockListResponse {
+    items: StockInfo[];
+    total: number;
+    page: number;
+    per_page: number;
+    pages: number;
+}
+
 export interface StockDataPoint {
     date: string;
     open?: number;
@@ -158,7 +166,14 @@ async function fetchAPIWithInit<T>(path: string, init?: RequestInit): Promise<T>
 }
 
 export const api = {
-    getStocks: () => fetchAPI<StockInfo[]>("/api/stocks"),
+    getStocks: (page = 1, perPage = 20, search?: string) => {
+        let url = `/api/stocks?page=${page}&per_page=${perPage}`;
+        if (search) url += `&search=${encodeURIComponent(search)}`;
+        return fetchAPI<StockListResponse>(url);
+    },
+
+    getFeaturedStocks: () =>
+        fetchAPI<StockListResponse>("/api/stocks?featured=true"),
 
     getStockData: (symbol: string, period = "5y", source = "live") =>
         fetchAPI<StockData>(`/api/stocks/${encodeURIComponent(symbol)}/data?period=${period}&source=${source}`),
